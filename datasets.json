@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "repository": "diaoyong3777/CMR_raw_dataset",
+  "release_tag": "datasets",
+  "release_title": "CMR Raw Datasets",
+  "part_size_mib": 1900,
+  "datasets": {
+    "coco2017_mini": {
+      "description": "CMR_Bench 端到端流程验证使用的 COCO 2017 小型子集",
+      "archive_root": "coco2017_mini",
+      "publish_enabled": true,
+      "upstream": "COCO 2017"
+    },
+    "mirflickr25k": {
+      "description": "MIRFLICKR-25K 原始图片与标注",
+      "archive_root": "mirflickr25k",
+      "publish_enabled": false,
+      "upstream": "MIRFLICKR-25K"
+    },
+    "nuswide": {
+      "description": "NUS-WIDE 原始图片与标注",
+      "archive_root": "nuswide",
+      "publish_enabled": false,
+      "upstream": "NUS-WIDE"
+    },
+    "coco2017": {
+      "description": "COCO 2017 train/val 图片与标注",
+      "archive_root": "coco2017",
+      "publish_enabled": false,
+      "upstream": "COCO 2017"
+    }
+  }
+}

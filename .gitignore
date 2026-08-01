@@ -1,0 +1,7 @@
+/raw_dataset/
+/release_assets/
+/.dataset_cache/
+/.test_install*/
+/__pycache__/
+/**/*.pyc
+/.idea/
