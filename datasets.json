@@ -6,28 +6,32 @@
   "part_size_mib": 1900,
   "datasets": {
     "coco2017_mini": {
-      "description": "CMR_Bench 端到端流程验证使用的 COCO 2017 小型子集",
+      "description": "COCO 2017 小型图片-文本子集，适合快速试验、教学演示和开发调试",
       "archive_root": "coco2017_mini",
       "publish_enabled": true,
-      "upstream": "COCO 2017"
+      "upstream": "COCO 2017",
+      "source_zip_encoding": null
     },
     "mirflickr25k": {
       "description": "MIRFLICKR-25K 原始图片与标注",
       "archive_root": "mirflickr25k",
-      "publish_enabled": false,
-      "upstream": "MIRFLICKR-25K"
+      "publish_enabled": true,
+      "upstream": "MIRFLICKR-25K",
+      "source_zip_encoding": null
     },
     "nuswide": {
       "description": "NUS-WIDE 原始图片与标注",
       "archive_root": "nuswide",
-      "publish_enabled": false,
-      "upstream": "NUS-WIDE"
+      "publish_enabled": true,
+      "upstream": "NUS-WIDE",
+      "source_zip_encoding": "gbk"
     },
     "coco2017": {
       "description": "COCO 2017 train/val 图片与标注",
       "archive_root": "coco2017",
-      "publish_enabled": false,
-      "upstream": "COCO 2017"
+      "publish_enabled": true,
+      "upstream": "COCO 2017",
+      "source_zip_encoding": null
     }
   }
 }
