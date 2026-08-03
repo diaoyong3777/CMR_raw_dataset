@@ -187,6 +187,16 @@ python dataset.py install coco2017_mini --output /data
 
 若用于 CMR_Bench，安装完成后将其 `datasets.<name>.image_root` 指向实际的 `<output>/<dataset>`；其他项目直接使用对应的数据集目录即可。
 
+## 测试与临时目录
+
+普通使用者不需要运行 `tests/`。它保存的是维护脚本时使用的自动回归测试，用于检查格式互转、打包与安装、断点续传、摘要校验、路径安全和菜单交互：
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+`tests/` 需要保留在 Git 仓库中，但不参与 `dataset.py` 的正常运行。测试产生的 `.test_install_*`、`__pycache__/` 等临时目录已被 Git 忽略，可以随时删除。测试代码单独存放，避免与正式的数据集工具逻辑混在同一个文件中。
+
 ## 本地目录
 
 ```text
