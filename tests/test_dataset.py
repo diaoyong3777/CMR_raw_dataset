@@ -84,17 +84,17 @@ class DatasetToolTests(unittest.TestCase):
             dataset.interactive()
 
         menu = output.getvalue()
-        self.assertIn("下载并安装数据集", menu)
-        self.assertIn("制作或上传数据包", menu)
-        self.assertIn("转换文件夹或 ZIP", menu)
-        self.assertIn("数据集状态与完整性检查", menu)
+        self.assertIn("下载并安装数据集（首次使用）", menu)
+        self.assertIn("查看状态或验证已安装数据", menu)
+        self.assertIn("转换文件夹或 ZIP（高级功能）", menu)
+        self.assertIn("制作或上传数据包（发布者）", menu)
         self.assertNotIn("检查原始数据", menu)
         self.assertIn("或输入 0 退出", menu)
 
     def test_check_submenu_distinguishes_status_from_integrity(self) -> None:
         output = io.StringIO()
         with (
-            mock.patch("builtins.input", side_effect=["4", "0", "0"]),
+            mock.patch("builtins.input", side_effect=["2", "0", "0"]),
             redirect_stdout(output),
         ):
             dataset.interactive()
@@ -103,6 +103,46 @@ class DatasetToolTests(unittest.TestCase):
         self.assertIn("查看原始文件、本机数据包和 GitHub 发布状态", menu)
         self.assertIn("验证已安装的数据目录是否完整", menu)
         self.assertGreaterEqual(menu.count("CMR 原始数据集工具"), 2)
+
+    def test_regular_install_uses_published_release_directly(self) -> None:
+        spec = dataset.DatasetSpec(
+            name="demo",
+            description="test",
+            archive_root="demo",
+            publish_enabled=True,
+            upstream="test",
+        )
+        settings = {"repository": "owner/repo", "release_tag": "datasets"}
+        manifest = {"dataset": "demo"}
+        parts = [Path("part.zip")]
+        with tempfile.TemporaryDirectory() as temp:
+            output_root = Path(temp) / "installed"
+            output = io.StringIO()
+            with (
+                mock.patch.object(
+                    dataset,
+                    "published_dataset_specs",
+                    return_value={"demo": spec},
+                ),
+                mock.patch.object(dataset, "choose_dataset", return_value=spec),
+                mock.patch.object(dataset, "prompt_path", return_value=output_root),
+                mock.patch.object(
+                    dataset,
+                    "prepare_remote_bundle",
+                    return_value=(manifest, parts),
+                ),
+                mock.patch.object(dataset, "install_bundle") as install,
+                mock.patch.object(
+                    dataset,
+                    "choose_menu_option",
+                    side_effect=AssertionError("普通安装不应再询问数据来源"),
+                ),
+                redirect_stdout(output),
+            ):
+                dataset.interactive_install(settings, {"demo": spec})
+
+        self.assertNotIn("安装来源", output.getvalue())
+        install.assert_called_once_with(manifest, parts, output_root, force=False)
 
     def test_dataset_menu_explains_each_choice(self) -> None:
         specs = {
@@ -217,8 +257,45 @@ class DatasetToolTests(unittest.TestCase):
 
         text = output.getvalue()
         self.assertIn("仍可正常制作本机数据包", text)
-        self.assertIn("重新制作并替换现有数据包", text)
+        self.assertIn("测试安装现有数据包", text)
+        self.assertIn("从原始数据重新制作", text)
         self.assertNotIn("仅本地使用", text)
+
+    def test_publisher_can_test_existing_local_bundle(self) -> None:
+        spec = dataset.DatasetSpec(
+            name="demo",
+            description="test",
+            archive_root="demo",
+            publish_enabled=True,
+            upstream="test",
+        )
+        with (
+            mock.patch.object(dataset, "dataset_asset_paths", return_value=[Path("old.zip")]),
+            mock.patch.object(dataset, "local_bundle_summary", return_value="小数据单 ZIP，1.0 MiB"),
+            mock.patch.object(dataset, "choose_menu_option", return_value="2"),
+            mock.patch.object(dataset, "interactive_install_local_bundle") as install_local,
+        ):
+            dataset.interactive_prepare({"part_size_mib": 1900}, spec)
+
+        install_local.assert_called_once_with(spec)
+
+    def test_command_help_prioritizes_normal_usage(self) -> None:
+        help_text = dataset.build_parser().format_help()
+
+        self.assertIn("常用示例", help_text)
+        self.assertIn("python dataset.py install coco2017_mini", help_text)
+        self.assertNotRegex(help_text, r"(?m)^\s+list\s+")
+
+    def test_legacy_list_command_still_maps_to_status(self) -> None:
+        settings = {"repository": "owner/repo", "release_tag": "datasets"}
+        with (
+            mock.patch.object(dataset, "load_settings", return_value=(settings, {})),
+            mock.patch.object(dataset, "print_dataset_status") as print_status,
+        ):
+            result = dataset.main(["list", "--remote"])
+
+        self.assertEqual(result, 0)
+        print_status.assert_called_once_with(settings, {}, check_remote=True)
 
     def test_safe_archive_path_rejects_traversal(self) -> None:
         for name in ("../escape.txt", "/absolute.txt", "demo/../../escape.txt", "C:/x"):

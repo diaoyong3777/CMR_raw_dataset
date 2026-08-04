@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""CMR_raw_dataset 的检查、打包、发布、下载和安装工具。
+"""CMR_raw_dataset 的下载、校验、安装、转换和发布工具。
 
-直接运行 ``python dataset.py`` 使用交互菜单；也可以使用子命令自动化。
-脚本读取原目录、单 ZIP 或带 manifest 的多 ZIP，所有中间文件都写在忽略目录中。
+直接运行 ``python dataset.py`` 使用中文交互菜单；也可以使用子命令自动化。
+普通使用者可直接从 GitHub Release 安装，发布者可读取原目录、单 ZIP 或带
+manifest 的多 ZIP。缓存和发布资产只写入被 Git 忽略的专用目录。
 """
 
 from __future__ import annotations
@@ -2092,53 +2093,45 @@ def published_dataset_specs(
     }
 
 
-def local_bundle_specs(specs: dict[str, DatasetSpec]) -> dict[str, DatasetSpec]:
-    available: dict[str, DatasetSpec] = {}
-    for name, spec in specs.items():
-        summary = local_bundle_summary(name)
-        if summary != "未生成" and not summary.startswith("不完整"):
-            available[name] = spec
-    return available
-
-
-def interactive_install(settings: dict, specs: dict[str, DatasetSpec]) -> None:
-    print("安装来源：")
-    print("  1. 从 GitHub 下载（推荐）")
-    print("  2. 使用本机已整理的发布包（发布者测试用）")
-    print("  0. 返回主菜单")
-    source_choice = choose_menu_option(
-        "请输入编号（直接回车选择 1）：",
-        {"1", "2"},
-        default="1",
-    )
-    if source_choice is None:
-        return
-
-    available = (
-        published_dataset_specs(settings, specs)
-        if source_choice == "1"
-        else local_bundle_specs(specs)
-    )
-    if not available:
-        raise DatasetError("当前来源中没有可安装的数据集")
-    spec = choose_dataset(available)
-    if spec is None:
-        return
+def choose_install_target(spec: DatasetSpec) -> tuple[Path, bool] | None:
+    """询问安装位置，并在覆盖已有目录前明确取得确认。"""
     output = prompt_path("安装到哪个根目录", DEFAULT_INSTALL_DIR)
     if output is None:
-        return
+        return None
     target_exists = (output / spec.name).exists()
     force = target_exists and confirm("目标已存在，是否保留备份后更新？")
     if target_exists and not force:
+        return None
+    return output, force
+
+
+def interactive_install(settings: dict, specs: dict[str, DatasetSpec]) -> None:
+    print("正在读取 GitHub 上可下载的数据集……")
+    available = published_dataset_specs(settings, specs)
+    if not available:
+        raise DatasetError("GitHub Release 中暂时没有可安装的数据集")
+    spec = choose_dataset(available)
+    if spec is None:
         return
-    if source_choice == "1":
-        manifest, parts = prepare_remote_bundle(
-            spec.name,
-            str(settings["repository"]),
-            str(settings["release_tag"]),
-        )
-    else:
-        manifest, parts = validate_local_bundle(spec.name)
+    target = choose_install_target(spec)
+    if target is None:
+        return
+    output, force = target
+    manifest, parts = prepare_remote_bundle(
+        spec.name,
+        str(settings["repository"]),
+        str(settings["release_tag"]),
+    )
+    install_bundle(manifest, parts, output, force=force)
+
+
+def interactive_install_local_bundle(spec: DatasetSpec) -> None:
+    """从本机发布资产执行与远程下载相同的安装回归。"""
+    target = choose_install_target(spec)
+    if target is None:
+        return
+    output, force = target
+    manifest, parts = validate_local_bundle(spec.name)
     install_bundle(manifest, parts, output, force=force)
 
 
@@ -2170,18 +2163,24 @@ def interactive_prepare(settings: dict, spec: DatasetSpec) -> None:
     if existing:
         print("请选择下一步：")
         if spec.publish_enabled:
-            print("  1. 上传现有数据包")
+            print("  1. 上传现有数据包到 GitHub")
+            print("  2. 测试安装现有数据包")
+            print("  3. 从原始数据重新制作")
+            valid_actions = {"1", "2", "3"}
+            remake_action = "3"
+        else:
+            print("  1. 测试安装现有数据包")
             print("  2. 从原始数据重新制作")
             valid_actions = {"1", "2"}
             remake_action = "2"
-        else:
-            print("  1. 从原始数据重新制作并替换现有数据包")
-            valid_actions = {"1"}
-            remake_action = "1"
         print("  0. 返回主菜单")
         action = choose_menu_option("请输入编号：", valid_actions)
         if spec.publish_enabled and action == "1":
             interactive_upload(settings, spec)
+            return
+        test_action = "2" if spec.publish_enabled else "1"
+        if action == test_action:
+            interactive_install_local_bundle(spec)
             return
         if action != remake_action:
             return
@@ -2296,10 +2295,10 @@ def interactive() -> None:
     while True:
         print("\nCMR 原始数据集工具")
         print("请选择你想完成的事情：")
-        print("  1. 下载并安装数据集（普通使用者选这个）")
-        print("  2. 制作或上传数据包（发布者使用）")
-        print("  3. 转换文件夹或 ZIP")
-        print("  4. 数据集状态与完整性检查")
+        print("  1. 下载并安装数据集（首次使用）")
+        print("  2. 查看状态或验证已安装数据")
+        print("  3. 转换文件夹或 ZIP（高级功能）")
+        print("  4. 制作或上传数据包（发布者）")
         print("  0. 退出")
         choice = choose_menu_option(
             "请输入编号：",
@@ -2313,105 +2312,199 @@ def interactive() -> None:
             if choice == "1":
                 interactive_install(settings, specs)
                 continue
-            if choice == "4":
+            if choice == "2":
                 interactive_check(settings, specs)
                 continue
-            spec = choose_dataset(specs, show_upload_status=(choice == "2"))
+            spec = choose_dataset(specs, show_upload_status=(choice == "4"))
             if spec is None:
                 continue
-            if choice == "2":
-                interactive_prepare(settings, spec)
-            else:
+            if choice == "3":
                 interactive_convert(settings, spec)
+            else:
+                interactive_prepare(settings, spec)
         except DatasetError as exc:
             print(f"操作未完成：{exc}")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="python dataset.py",
+        description=(
+            "下载、校验和安装 CMR 原始数据集，也支持发布者检查、转换、"
+            "打包和上传数据资产。直接运行不带参数的命令可使用中文菜单。"
+        ),
+        epilog="""常用示例：
+  python dataset.py
+  python dataset.py install coco2017_mini --output <安装根目录>
+  python dataset.py verify coco2017_mini --root <安装根目录> --deep
+  python dataset.py status --remote
+
+普通使用者优先使用 install 和 verify；convert、inspect、pack、upload
+主要用于格式转换或维护 GitHub Release。""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="command")
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="下载、校验并安装数据集（普通使用者推荐）",
+        description="从 GitHub Release 下载完整数据包，校验后安全安装。",
+    )
+    install_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
+    install_parser.add_argument(
+        "--output",
+        metavar="DIR",
+        type=Path,
+        required=True,
+        help="安装根目录；最终数据位于 <DIR>/<DATASET>/",
+    )
+    install_parser.add_argument(
+        "--repo",
+        metavar="OWNER/REPO",
+        default=None,
+        help="覆盖配置中的 GitHub 仓库",
+    )
+    install_parser.add_argument(
+        "--local-assets",
+        metavar="DIR",
+        type=Path,
+        default=None,
+        help="改从本地发布资产目录安装，用于发布前测试",
+    )
+    install_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="保留原目录备份后更新已有安装",
+    )
+
+    verify_parser = subparsers.add_parser(
+        "verify",
+        help="检查已经安装的数据集",
+        description="根据安装时保存的 manifest 检查数据目录。",
+    )
+    verify_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
+    verify_parser.add_argument(
+        "--root",
+        metavar="DIR",
+        type=Path,
+        required=True,
+        help="安装根目录，与 install --output 使用同一目录",
+    )
+    verify_parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="逐文件计算 SHA-256，速度较慢但检查最完整",
+    )
 
     status_parser = subparsers.add_parser(
         "status",
-        help="查看原始数据、本地发布包和远程状态",
+        help="查看本机文件和数据集发布状态",
+        description="查看原始来源、本地发布资产，以及可选的 GitHub Release 状态。",
     )
-    status_parser.add_argument("--remote", action="store_true", help="同时联网查询 Release")
-    list_parser = subparsers.add_parser("list", help="兼容旧命令：查看本地状态")
-    list_parser.add_argument("--remote", action="store_true", help="同时联网查询 Release")
-
-    inspect_parser = subparsers.add_parser("inspect", help="只读检查原始文件夹或 ZIP")
-    inspect_parser.add_argument("dataset")
-    inspect_parser.add_argument("--source", type=Path, default=None)
-
-    pack_parser = subparsers.add_parser("pack", help="自动生成单 ZIP 或多个独立 ZIP")
-    pack_parser.add_argument("dataset")
-    pack_parser.add_argument("--source", type=Path, default=None)
-    pack_parser.add_argument("--force", action="store_true", help="替换本地同名发布资产")
-    pack_parser.add_argument(
-        "--part-size-mib",
-        type=int,
-        default=None,
-        help="测试或特殊场景使用的分卷上限；正式发布默认 1900 MiB",
+    status_parser.add_argument(
+        "--remote",
+        action="store_true",
+        help="同时联网查询 GitHub Release",
     )
 
     convert_parser = subparsers.add_parser(
         "convert",
-        help="在原目录、单个大 ZIP 和多个独立小 ZIP 之间转换",
+        help="转换原目录、单个 ZIP 或多个 ZIP",
+        description="在原目录、单个完整 ZIP 和多个独立小 ZIP 之间转换。",
     )
-    convert_parser.add_argument("dataset")
+    convert_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
     convert_parser.add_argument(
         "--source",
+        metavar="PATH",
         type=Path,
         default=None,
-        help="文件夹、单 ZIP、发布包目录、manifest 或任意 part ZIP",
+        help="原目录、单 ZIP、发布包目录、manifest 或任意 part ZIP",
     )
     convert_parser.add_argument(
         "--to",
         choices=("directory", "single-zip", "split-zip"),
         required=True,
+        help="目标格式：原目录、单个完整 ZIP 或多个独立小 ZIP",
     )
     convert_parser.add_argument(
         "--output",
+        metavar="PATH",
         type=Path,
         required=True,
-        help="目录目标填写安装根目录；大 ZIP 填写 .zip；多 ZIP 填写资产目录",
+        help="目录格式填安装根目录；单 ZIP 填 .zip；多 ZIP 填资产目录",
     )
-    convert_parser.add_argument("--force", action="store_true", help="安全替换同名目标")
+    convert_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="安全替换同名目标",
+    )
     convert_parser.add_argument(
         "--part-size-mib",
+        metavar="MIB",
         type=int,
         default=None,
-        help="目标为 split-zip 时的单包上限，默认 1900 MiB",
+        help="多 ZIP 的单包上限，默认 1900 MiB",
     )
 
-    upload_parser = subparsers.add_parser("upload", help="上传已校验的本地资产")
-    upload_parser.add_argument("dataset")
-    upload_parser.add_argument("--repo", default=None)
-    upload_parser.add_argument("--replace", action="store_true", help="替换远程同名资产")
-    upload_parser.add_argument("--yes", action="store_true", help="跳过上传确认")
-
-    install_parser = subparsers.add_parser("install", help="下载、校验并安全安装数据集")
-    install_parser.add_argument("dataset")
-    install_parser.add_argument("--output", type=Path, required=True)
-    install_parser.add_argument("--repo", default=None)
-    install_parser.add_argument(
-        "--local-assets",
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="只读检查准备发布的原始数据",
+        description="读取原目录或 ZIP，报告文件数量、大小和预计分包方案，不生成文件。",
+    )
+    inspect_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
+    inspect_parser.add_argument(
+        "--source",
+        metavar="PATH",
         type=Path,
         default=None,
-        help="从本地发布目录安装，用于发布前回归测试",
+        help="原始文件夹或 ZIP；省略时自动查找",
     )
-    install_parser.add_argument("--force", action="store_true", help="保留备份后替换已有目录")
 
-    verify_parser = subparsers.add_parser("verify", help="验证已安装的数据集")
-    verify_parser.add_argument("dataset")
-    verify_parser.add_argument("--root", type=Path, required=True)
-    verify_parser.add_argument("--deep", action="store_true", help="逐文件计算 SHA-256")
+    pack_parser = subparsers.add_parser(
+        "pack",
+        help="生成可发布的数据包",
+        description="检查来源后自动生成单 ZIP 或多个独立小 ZIP，并写入校验清单。",
+    )
+    pack_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
+    pack_parser.add_argument(
+        "--source",
+        metavar="PATH",
+        type=Path,
+        default=None,
+        help="原始文件夹或 ZIP；省略时自动查找",
+    )
+    pack_parser.add_argument("--force", action="store_true", help="替换本地同名发布资产")
+    pack_parser.add_argument(
+        "--part-size-mib",
+        metavar="MIB",
+        type=int,
+        default=None,
+        help="测试或特殊场景使用的分卷上限；正式发布默认 1900 MiB",
+    )
+
+    upload_parser = subparsers.add_parser(
+        "upload",
+        help="上传本地发布资产",
+        description="验证 release_assets 中的数据包，并上传到 GitHub Release。",
+    )
+    upload_parser.add_argument("dataset", metavar="DATASET", help="数据集名称")
+    upload_parser.add_argument(
+        "--repo",
+        metavar="OWNER/REPO",
+        default=None,
+        help="覆盖配置中的 GitHub 仓库",
+    )
+    upload_parser.add_argument("--replace", action="store_true", help="替换远程同名资产")
+    upload_parser.add_argument("--yes", action="store_true", help="跳过上传确认")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    arguments = list(argv) if argv is not None else sys.argv[1:]
+    if arguments[:1] == ["list"]:
+        arguments[0] = "status"
+    args = parser.parse_args(arguments)
     if args.command is None:
         interactive()
         return 0
