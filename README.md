@@ -2,11 +2,7 @@
 
 CMR_raw_dataset 为跨模态检索实验提供原始图片、文本和标注数据，以及一套可直接使用的下载、校验、安装、转换和发布工具。
 
-Git 仓库只保存脚本、配置和说明；大体积数据统一存放在 [`datasets` Release](https://github.com/diaoyong3777/CMR_raw_dataset/releases/tag/datasets)，不会写入 Git 历史。数据包不包含项目生成的特征或 PKL：
-
-- 原始图片与标注：由本仓库管理；
-- 数据集整理与 PKL 生成：见 [CMR_dataset](https://github.com/diaoyong3777/CMR_dataset)；
-- 统一实验运行与评估：见 [CMR_Bench](https://github.com/diaoyong3777/CMR_Bench)。
+Git 仓库只保存脚本、配置和说明；大体积数据统一存放在 [`datasets` Release](https://github.com/diaoyong3777/CMR_raw_dataset/releases/tag/datasets)，不会写入 Git 历史。本仓库只管理上游原始图片与标注，不包含特定项目生成的特征、PKL、数据划分或实验结果。
 
 ## 快速开始
 
