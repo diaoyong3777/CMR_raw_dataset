@@ -279,6 +279,16 @@ class DirectoryDatasetSource(DatasetSource):
         path = entry.token
         if not isinstance(path, Path):
             raise DatasetError("文件夹数据源记录无效")
+
+        # Windows 未启用长路径策略时，普通路径接口无法打开超过 260 字符的文件。
+        # 扫描结果保存的是绝对路径，因此可安全转换为扩展长度路径后再读取。
+        if os.name == "nt" and len(str(path)) >= 260:
+            raw_path = str(path)
+            if not raw_path.startswith("\\\\?\\"):
+                if raw_path.startswith("\\\\"):
+                    path = Path("\\\\?\\UNC\\" + raw_path[2:])
+                else:
+                    path = Path("\\\\?\\" + raw_path)
         return path.open("rb")
 
 

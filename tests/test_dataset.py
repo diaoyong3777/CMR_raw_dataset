@@ -41,6 +41,23 @@ class FakeHttpResponse:
 
 
 class DatasetToolTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "仅验证 Windows 长路径读取")
+    def test_directory_source_reads_windows_long_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "demo"
+            source.mkdir()
+            long_path = source / ("x" * 220 + ".bin")
+            extended_path = Path("\\\\?\\" + str(long_path.resolve()))
+            extended_path.write_bytes(b"long-path")
+            try:
+                with dataset.DirectoryDatasetSource(source) as data_source:
+                    entry = data_source.entries[0]
+                    self.assertGreater(len(str(entry.token)), 260)
+                    with data_source.open_entry(entry) as file_obj:
+                        self.assertEqual(file_obj.read(), b"long-path")
+            finally:
+                extended_path.unlink(missing_ok=True)
+
     def test_large_file_progress_is_compact(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
