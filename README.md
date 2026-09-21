@@ -41,6 +41,7 @@ python dataset.py install coco2017_mini --output ./datasets
 | 数据集 | 内容 | 文件数 | 下载大小 | 解压大小 | ZIP 数量 |
 |---|---|---:|---:|---:|---:|
 | `coco2017_mini` | COCO 2017 小型图片-文本子集 | 34 | 4.6 MiB | 4.6 MiB | 1 |
+| `coco_val2017` | COCO 2017 官方 val2017 图片及 captions、instances 标注 | 5,002 | 780.8 MiB | 831.4 MiB | 1 |
 | `mirflickr25k` | MIRFLICKR-25K 图片与标注 | 150,042 | 2.9 GiB | 2.9 GiB | 2 |
 | `nuswide` | NUS-WIDE 图片与标注 | 269,909 | 6.9 GiB | 8.2 GiB | 5 |
 | `coco2017` | COCO 2017 train/val 图片与标注 | 123,293 | 18.9 GiB | 19.6 GiB | 11 |
@@ -53,6 +54,10 @@ python dataset.py install coco2017_mini --output ./datasets
 coco2017_mini/
 ├── annotations/                    # 2 个 JSON 标注文件
 └── mini2017/                       # 32 张 JPG 图片
+
+coco_val2017/
+├── annotations/                    # captions_val2017.json、instances_val2017.json
+└── val2017/                        # 5,000 张 JPG 图片
 
 mirflickr25k/
 ├── mirflickr/                      # 图片、文本标签与原始说明

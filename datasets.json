@@ -12,6 +12,13 @@
       "upstream": "COCO 2017",
       "source_zip_encoding": null
     },
+    "coco_val2017": {
+      "description": "COCO 2017 官方 val2017 图片及 captions、instances 标注",
+      "archive_root": "coco_val2017",
+      "publish_enabled": true,
+      "upstream": "COCO 2017 val2017",
+      "source_zip_encoding": null
+    },
     "mirflickr25k": {
       "description": "MIRFLICKR-25K 原始图片与标注",
       "archive_root": "mirflickr25k",
