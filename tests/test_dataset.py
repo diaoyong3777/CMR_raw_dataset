@@ -552,6 +552,30 @@ class DatasetToolTests(unittest.TestCase):
                 "owner/repo",
             )
 
+    def test_release_query_uses_rest_asset_digest(self) -> None:
+        remote = {
+            "assets": [
+                {
+                    "name": "asset.zip",
+                    "state": "uploaded",
+                    "size": 5,
+                    "digest": "sha256:" + "a" * 64,
+                }
+            ]
+        }
+        result = mock.Mock(returncode=0, stdout=json.dumps(remote), stderr="")
+
+        with mock.patch.object(dataset.subprocess, "run", return_value=result) as run:
+            self.assertEqual(
+                dataset.gh_release_view("gh", "owner/repo", "datasets"),
+                remote,
+            )
+
+        self.assertEqual(
+            run.call_args.args[0],
+            ["gh", "api", "repos/owner/repo/releases/tags/datasets"],
+        )
+
     def test_upload_plan_skips_equal_and_requires_replace_for_stale_assets(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

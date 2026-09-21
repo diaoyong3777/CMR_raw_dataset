@@ -1185,13 +1185,8 @@ def gh_release_view(executable: str, repo: str, tag: str) -> dict | None:
     result = subprocess.run(
         [
             executable,
-            "release",
-            "view",
-            tag,
-            "--repo",
-            repo,
-            "--json",
-            "assets,body,url",
+            "api",
+            f"repos/{repo}/releases/tags/{tag}",
         ],
         cwd=PROJECT_ROOT,
         text=True,
